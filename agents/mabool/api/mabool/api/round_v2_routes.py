@@ -23,6 +23,7 @@ from mabool.infra.operatives import CompleteResponse, PartialResponse, VoidRespo
 from mabool.services.prioritized_task import DEFAULT_PRIORITY, PrioritySemaphore
 from mabool.utils.dc import DC
 from mabool.utils.file_based_cache import FileBasedCache
+from mabool.utils import audit_papers
 
 logger = logging.getLogger(__name__)
 round_semaphore = PrioritySemaphore(concurrency=3)
@@ -56,6 +57,15 @@ async def run_round_with_cache(
             result_set_to_return = response.data.model_dump(mode="json")
             result_set_to_return["token_breakdown_by_model"] = cb.tokens_by_model
             result_set_to_return["session_id"] = conversation_thread_id
+            try:
+                docs = []
+                if isinstance(result_set_to_return, dict):
+                    dc = result_set_to_return.get("doc_collection") or {}
+                    docs = dc.get("documents") if isinstance(dc, dict) else []
+                corpus_ids = [d.get("corpus_id") for d in docs if isinstance(d, dict) and d.get("corpus_id")]
+                audit_papers.record_final(corpus_ids)
+            except Exception:
+                pass
             return result_set_to_return
         case _:
             raise HTTPException(status_code=500, detail="Unexpected response type from agent")

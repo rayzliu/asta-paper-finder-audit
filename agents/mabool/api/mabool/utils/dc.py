@@ -13,6 +13,7 @@ from ai2i.di import DI
 
 from mabool.data_model.rounds import RoundContext
 from mabool.utils import context_deps, dc_deps
+from mabool.utils import audit_papers
 
 
 class DC:
@@ -21,7 +22,12 @@ class DC:
     def from_ids(
         corpus_ids: list[CorpusId], dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory)
     ) -> DocumentCollection:
-        return dcf.from_ids(corpus_ids)
+        coll = dcf.from_ids(corpus_ids)
+        try:
+            audit_papers.record_retrieved([doc.corpus_id for doc in coll.documents])
+        except Exception:
+            pass
+        return coll
 
     @staticmethod
     @DI.managed
@@ -32,7 +38,13 @@ class DC:
             dc_deps.round_doc_collection_factory, default_factory=dc_deps.detached_doc_collection_factory
         ),
     ) -> DocumentCollection:
-        return dcf.from_docs(documents, computed_fields)
+        coll = dcf.from_docs(documents, computed_fields)
+        try:
+            # record any provided corpus ids
+            audit_papers.record_retrieved([getattr(doc, 'corpus_id', None) for doc in coll.documents])
+        except Exception:
+            pass
+        return coll
 
     @staticmethod
     @DI.managed
@@ -55,9 +67,14 @@ class DC:
         dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
         request_context: RoundContext | None = DI.requires(context_deps.request_context),
     ) -> DocumentCollection:
-        return await dcf.from_s2_by_author(
+        coll = await dcf.from_s2_by_author(
             authors_profiles, limit, request_context.inserted_before if request_context else None
         )
+        try:
+            audit_papers.record_retrieved([doc.corpus_id for doc in coll.documents])
+        except Exception:
+            pass
+        return coll
 
     @staticmethod
     @DI.managed
@@ -68,9 +85,14 @@ class DC:
         dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
         request_context: RoundContext | None = DI.requires(context_deps.request_context),
     ) -> DocumentCollection:
-        return await dcf.from_s2_by_title(
+        coll = await dcf.from_s2_by_title(
             query, time_range, venues, request_context.inserted_before if request_context else None
         )
+        try:
+            audit_papers.record_retrieved([doc.corpus_id for doc in coll.documents])
+        except Exception:
+            pass
+        return coll
 
     @staticmethod
     @DI.managed
@@ -85,7 +107,7 @@ class DC:
         dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
         request_context: RoundContext | None = DI.requires(context_deps.request_context),
     ) -> DocumentCollection:
-        return await dcf.from_s2_search(
+        coll = await dcf.from_s2_search(
             query,
             limit,
             search_iteration,
@@ -96,6 +118,11 @@ class DC:
             fields,
             request_context.inserted_before if request_context else None,
         )
+        try:
+            audit_papers.record_retrieved([doc.corpus_id for doc in coll.documents])
+        except Exception:
+            pass
+        return coll
 
     @staticmethod
     @DI.managed
@@ -105,9 +132,14 @@ class DC:
         dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
         request_context: RoundContext | None = DI.requires(context_deps.request_context),
     ) -> DocumentCollection:
-        return await dcf.from_s2_citing_papers(
+        coll = await dcf.from_s2_citing_papers(
             corpus_id, search_iteration, inserted_before=request_context.inserted_before if request_context else None
         )
+        try:
+            audit_papers.record_retrieved([doc.corpus_id for doc in coll.documents])
+        except Exception:
+            pass
+        return coll
 
     @staticmethod
     @DI.managed
@@ -124,7 +156,7 @@ class DC:
         dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
         request_context: RoundContext | None = DI.requires(context_deps.request_context),
     ) -> DocumentCollection:
-        return await dcf.from_dense_retrieval(
+        coll = await dcf.from_dense_retrieval(
             queries,
             search_iteration,
             dataset,
@@ -136,3 +168,8 @@ class DC:
             fields_of_study,
             request_context.inserted_before if request_context else None,
         )
+        try:
+            audit_papers.record_retrieved([doc.corpus_id for doc in coll.documents])
+        except Exception:
+            pass
+        return coll

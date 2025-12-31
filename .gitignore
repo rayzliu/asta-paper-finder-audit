@@ -90,3 +90,6 @@ server.log*
 
 # devbox files
 **/.devbox/**
+
+
+README.md
